@@ -319,7 +319,7 @@ All messages are JSON over a single WebSocket connection per client.
 | **Azure Container Apps** | Consumption plan, `beatstream` environment |
 | **Min replicas** | 1 (avoids cold-start latency) |
 | **Max replicas** | 5 (scales on HTTP concurrency) |
-| **Container image** | ~10 MB (statically-linked Rust binary + static assets) |
+| **Container image** | < 15 MB (statically-linked Rust binary + Azure SDK deps + static assets) |
 | **Container Registry** | Azure Container Registry (ACR) |
 | **Cosmos DB** | Serverless tier, `beatstream` database |
 | **Key Vault** | Stores Cosmos connection string, future secrets |
@@ -332,10 +332,58 @@ All messages are JSON over a single WebSocket connection per client.
        ▼
   GitHub Actions
        │
-       ├── cargo build --release
+       ├── cargo fmt --check
+       ├── cargo clippy
+       ├── cargo test
        ├── docker build → ACR
        └── az containerapp update → Container Apps
 ```
+
+### GitHub Actions Authentication
+
+**Use OIDC (OpenID Connect)** — no stored secrets for Azure access.
+
+| Component | Configuration |
+|-----------|--------------|
+| **Identity provider** | GitHub Actions (federated) |
+| **Azure side** | App Registration with Federated Credential for `repo:diberry/beat-stream-rs:ref:refs/heads/main` |
+| **Workflow auth** | `azure/login@v2` with `client-id`, `tenant-id`, `subscription-id` (all non-secret) |
+| **No secrets stored** | No `AZURE_CLIENT_SECRET` in GitHub Secrets — OIDC token is minted per-run |
+| **ACR push** | `az acr login` after OIDC auth (inherits token) |
+
+> **Why OIDC over stored credentials?** Secrets can leak, expire, and require rotation. OIDC tokens are short-lived (5 min), auto-rotated, and scoped to the specific repo + branch. Zero maintenance.
+
+### Cosmos DB Cost Model
+
+| Scenario | Estimated RU/s | Monthly Cost (serverless) |
+|----------|---------------|--------------------------|
+| **Idle** (no traffic) | 0 | $0 |
+| **Low** (10 rooms/day, 5 users avg) | ~50 RU/day | < $1/month |
+| **Medium** (100 rooms/day, 10 users avg) | ~500 RU/day | ~$3/month |
+| **High** (1,000 rooms/day, 20 users avg) | ~5,000 RU/day | ~$15/month |
+| **Burst** (viral moment, 10K rooms) | ~50,000 RU/day | ~$50/month |
+
+**RU breakdown per operation:**
+- Create room: ~6 RU (single write, ~1 KB document)
+- Read room state: ~1 RU (point read by ID)
+- Update room state: ~6 RU (replace operation)
+- TTL deletion: 0 RU (handled by Cosmos internally)
+
+> **Cost guardrail:** Cosmos DB serverless caps at 5,000 RU/s burst. At sustained high traffic, consider switching to provisioned autoscale (400–4,000 RU/s, ~$23/month baseline). Alert at $20/month spend.
+
+### Monitoring & Observability
+
+| Layer | Tool | What It Monitors |
+|-------|------|-----------------|
+| **Application** | Azure Application Insights (post-MVP) | Request latency, WebSocket connection count, error rate, custom events (room created, pattern toggled) |
+| **Infrastructure** | Azure Monitor (built-in) | Container CPU/memory, replica count, restart events |
+| **Availability** | Container Apps health probes | `/api/health` liveness check every 10s |
+| **Cost** | Azure Cost Management alerts | Budget alert at $20/month, anomaly detection |
+| **Errors** | Structured logging (`tracing` crate) | JSON logs to Container Apps log stream, filterable by room_id |
+
+**MVP logging** (Phase 0–2): `tracing` + `tracing-subscriber` with JSON formatting. Logs ship to Container Apps log stream automatically.
+
+**Post-MVP observability** (Phase 4+): Application Insights SDK integration for distributed tracing, custom metrics (rooms active, WebSocket connections, toggle rate), and availability tests.
 
 ### Scaling Strategy
 
@@ -345,7 +393,35 @@ All messages are JSON over a single WebSocket connection per client.
 | HTTP concurrency | < 10 per replica | Scale in (down to 1 replica) |
 | Idle | Always | 1 replica stays warm |
 
-> **Important:** Because rooms use in-process `broadcast` channels, all users in a room must hit the same replica. At MVP scale (< 5 replicas), this is naturally handled by sticky sessions on the WebSocket connection. A Redis-backed pub/sub layer would be needed beyond ~5 replicas.
+> **Scaling numbers:** Each replica supports approximately **200 concurrent WebSocket connections** (limited by tokio task overhead and broadcast channel fan-out). At 50 users per room average, that's ~4 active rooms per replica. The 5-replica max supports ~1,000 concurrent users / ~20 active rooms.
+
+> **Important:** Because rooms use in-process `broadcast` channels, all users in a room must hit the same replica. At MVP scale (< 5 replicas), this is naturally handled by sticky sessions on the WebSocket connection. Azure Service Bus topics handle cross-replica sync beyond 5 replicas (see Section 15).
+
+### WebSocket Reconnection
+
+Clients implement automatic reconnection to handle transient network issues:
+
+| Event | Client Behavior |
+|-------|----------------|
+| Connection dropped | Retry with exponential backoff: 1s → 2s → 4s → 8s → 16s (max) |
+| Reconnection success | Server sends full `state` message; client replaces local state |
+| Max retries exceeded (5) | Show "Connection lost" banner with manual retry button |
+| Tab becomes visible | Immediately attempt reconnection if disconnected |
+| Server sends `ping` | Client responds with `pong` within 10s (else server closes) |
+
+### Infrastructure-as-Code Decision
+
+**Chosen: Bicep** (Azure-native, zero dependencies beyond Azure CLI)
+
+| Factor | Bicep | Terraform |
+|--------|-------|-----------|
+| Azure-native | ✅ First-class | ⚠️ Provider lag |
+| Dependencies | Azure CLI only | Terraform binary + azurerm provider |
+| Learning curve | Lower (ARM JSON → Bicep) | Higher (HCL + state management) |
+| State management | None (Azure is the state) | Remote state backend required |
+| Community for Azure | Growing, Microsoft-maintained | Larger, but generic |
+
+Rationale: beat-stream-rs is all-Azure with no multi-cloud requirements. Bicep's zero-state-file model and direct ARM integration reduce operational complexity for a single-developer project.
 
 ---
 
@@ -356,9 +432,11 @@ All messages are JSON over a single WebSocket connection per client.
 | 1 | **Client audio sync across browsers** — Different browsers have different audio scheduling precision. Two users may hear slightly different timing. | 🔴 High | Each client plays its own local audio loop synced to its own clock. This is the industry-standard approach (used by Splice, BandLab, etc.). We sync *state*, not *audio*. |
 | 2 | **Azure SDK for Rust beta breakage** — The `azure_*` crates are pre-GA and may introduce breaking changes. | 🔴 High | Pin exact crate versions in `Cargo.toml`. Maintain a thin abstraction layer so we can fall back to raw `reqwest` HTTP calls against Azure REST APIs if a crate breaks. |
 | 3 | **Container Apps WebSocket idle timeout** — Azure Container Apps may close idle WebSocket connections. | 🟡 Medium | Implement ping/pong frames every 30 seconds. Configure the maximum idle timeout on the Container App ingress. |
-| 4 | **Cold-start latency** — First request after scale-to-zero takes several seconds. | 🟡 Medium | Set `minReplicas: 1` so there is always a warm instance. The Rust binary is ~10 MB and starts in < 500 ms. |
+| 4 | **Cold-start latency** — First request after scale-to-zero takes several seconds. | 🟡 Medium | Set `minReplicas: 1` so there is always a warm instance. The Rust binary is ~15 MB and starts in < 500 ms. |
 | 5 | **Cosmos DB cost at scale** — Unexpected traffic could drive up RU consumption. | 🟢 Low | Serverless tier charges ~$0.25 per million RUs. Rooms auto-delete via TTL after 24 hours. At MVP traffic levels, monthly cost should stay under $5. |
-| 6 | **Multi-replica state divergence** — If scaled beyond 1 replica, rooms are isolated per process. | 🟡 Medium | MVP runs 1 replica. Post-MVP adds Redis pub/sub or moves room state to Cosmos DB change feed for cross-replica sync. |
+| 6 | **Multi-replica state divergence** — If scaled beyond 1 replica, rooms are isolated per process. | 🟡 Medium | MVP runs 1 replica. Post-MVP adds Azure Service Bus topics for cross-replica sync (see Section 15 — keeps the stack all-Azure, no Redis). |
+| 7 | **WebSocket state conflicts** — Two users toggle the same cell simultaneously. | 🟡 Medium | Last-write-wins with server timestamp. Server is the authority — conflicting toggles resolve to the latest `toggle` message received. Clients optimistically apply local changes and reconcile on the next `state` broadcast (every 500 ms). |
+| 8 | **WebSocket abuse / spam** — A single client sends unlimited toggle messages. | 🟡 Medium | Server-side rate limiting: max 20 messages/second per client. Exceeding the limit triggers a `{ "type": "rate_limited" }` warning; persistent abuse closes the connection. |
 
 ---
 
@@ -398,18 +476,55 @@ Week 1                          Week 2
 
 ---
 
+## 13.5. Test Strategy
+
+Testing is integral from Phase 0. Every phase has a clear testing deliverable — no feature ships without coverage.
+
+### Test Layers
+
+| Layer | Tool | Scope | When |
+|-------|------|-------|------|
+| **Unit tests** | `cargo test` | Pure logic: pattern generation, smart constraints, BPM validation, rate limiter | Phase 1+ (every PR) |
+| **Integration tests** | `cargo test --features integration` | Azure SDK interactions: Cosmos CRUD, Key Vault fetch, Service Bus pub/sub | Phase 2+ (requires live Azure resources) |
+| **WebSocket tests** | `tokio-tungstenite` + in-process server | Connection upgrade, message relay, broadcast fan-out, rate limiting, reconnection | Phase 1+ (every PR) |
+| **API tests** | `axum::test` helpers | REST endpoints: room CRUD, health check, error responses | Phase 1+ (every PR) |
+| **Frontend smoke** | Playwright (post-MVP) | Page loads, grid renders, audio plays, WebSocket connects | Phase 3+ (manual until then) |
+| **Load tests** | `k6` or `drill` | WebSocket concurrency: 200 connections/replica, message throughput, latency P95 | Phase 2+ (pre-launch) |
+
+### Coverage Targets
+
+| Phase | Target | Focus |
+|-------|--------|-------|
+| Phase 1 | > 80% line coverage on server crate | Core logic: room state, broadcast, pattern generation |
+| Phase 2 | > 70% on integration paths | Cosmos operations, Key Vault startup, error recovery |
+| Phase 3 | Manual acceptance tests | UX flows: progressive reveal, mood buttons, combos |
+| Phase 4 | > 60% on new service integrations | Blob, Service Bus, Queue interactions |
+
+### CI Gate
+
+Every PR must pass:
+1. `cargo fmt --check` (formatting)
+2. `cargo clippy -- -D warnings` (lints)
+3. `cargo test` (unit + WebSocket tests)
+4. `cargo deny check` (license + advisory)
+
+Integration tests run on `main` branch merges only (require Azure credentials via OIDC).
+
+---
+
 ## 14. Post-MVP Roadmap
 
 | Priority | Feature | Dependencies |
 |----------|---------|-------------|
 | 🥇 | **Saved patterns gallery** | `patterns` Cosmos container, gallery UI |
 | 🥇 | **Event Hubs integration** | `azure_messaging_eventhubs` crate, analytics pipeline |
+| 🥇 | **Application Insights** | `tracing-opentelemetry` + AI SDK, custom metrics for rooms/connections |
 | 🥈 | **Public room discovery** | Room listing API, moderation strategy |
 | 🥈 | **Custom sound packs** | Audio file upload, Blob Storage |
+| 🥈 | **Accessibility** | Screen reader support, full keyboard navigation, ARIA labels (addressed in Phase 3) |
 | 🥉 | **Share / export loops** | Server-side audio rendering or client-side Tone.js offline render |
 | 🥉 | **Mobile-optimized touch** | Touch event handling, gesture support, haptic feedback |
-| 🥉 | **Accessibility** | Screen reader support, full keyboard navigation, ARIA labels |
-| 🏅 | **Multi-replica sync** | Redis pub/sub or Cosmos DB change feed for cross-replica room state |
+| 🏅 | **Multi-replica sync** | Azure Service Bus topics for cross-replica room state |
 
 ---
 
@@ -452,9 +567,197 @@ For reference, the complete set of `azure-sdk-for-rust` crates and their beat-st
 
 ---
 
+## 16. Implementation Phases
+
+Development is organized into five sequential phases. Each phase produces a deployable increment — nothing stays on a branch for more than one phase.
+
+### Phase 0: Infrastructure & Repo Configuration
+
+> **Goal:** Set up everything needed before writing application code.
+
+| Deliverable | Details |
+|-------------|---------|
+| **Repo structure** | Cargo workspace layout: `/crates/` (server, shared types), `/infra/` (Bicep), `/frontend/` (static assets), `/docs/` (ADRs, guides) |
+| **Cargo workspace** | Root `Cargo.toml` with `[workspace]` members, shared dependency versions via `[workspace.dependencies]` |
+| **Infrastructure-as-code** | **Bicep** (Azure-native, no state file): Container Apps environment, Cosmos DB serverless account + `beatstream` database, Key Vault, Azure Container Registry, OIDC federated credential |
+| **CI/CD pipeline** | GitHub Actions workflow: `cargo fmt --check` → `cargo clippy` → `cargo test` → `cargo deny check` → `docker build` → push to ACR → `az containerapp update`. Auth via OIDC (no stored secrets). |
+| **Dev container** | `.devcontainer/devcontainer.json` with Rust toolchain, Azure CLI, Azure Developer CLI (`azd`), `cargo-deny`, and VS Code extensions |
+| **Environment config** | `.env.example` with all required variables, documentation for Azure connection setup |
+| **Linting & formatting** | `rustfmt.toml`, `.clippy.toml`, `deny.toml` (license allow-list, advisory database, ban duplicates) |
+| **Container setup** | Multi-stage Dockerfile: `rust:slim` build stage → `gcr.io/distroless/cc` or `scratch` runtime stage for a < 15 MB image |
+| **Test foundation** | `cargo test` runs unit + WebSocket tests in CI. Integration test feature flag (`--features integration`) for Azure-dependent tests. |
+| **ADR-0000: IaC choice** | Document Bicep selection rationale (see Deployment → Infrastructure-as-Code Decision) |
+
+### Phase 1: Core Beat Engine (MVP)
+
+> **Goal:** Single-player beat sequencer running locally — land on page, hear a beat in < 3 seconds.
+
+| Deliverable | Details |
+|-------------|---------|
+| **Axum web server** | `axum 0.8` with `tower-http` serving static files from `/frontend/dist/` |
+| **Beat grid data model** | In-memory `RoomState` struct: 4 tracks × 16 steps, BPM, active-user count. No persistence yet. |
+| **WebSocket endpoint** | `GET /api/rooms/:id/ws` → upgrade to WS, send full `state` message on connect, relay `toggle`/`bpm` messages |
+| **Frontend grid UI** | Vanilla JS + CSS Grid: 16 columns × 1–4 rows, emoji labels (BOOM 💥, CRACK ⚡, TICK ✨, SNAP 👏), per-cell toggle with micro-animation |
+| **Audio engine** | Tone.js `Transport` + `Sampler`: schedules samples on the client clock, loops the 16-step pattern |
+| **Starter patterns** | 6 built-in patterns (Chill, Bounce, Pulse, Sparse, Chaos, Heartbeat) — one assigned randomly on room creation |
+| **BPM control** | Slider or +/− buttons, range 60–140, synced over WebSocket |
+| **Health endpoint** | `GET /api/health` → `{ "status": "ok" }` for Container Apps probes |
+
+### Phase 2: Persistence & Rooms
+
+> **Goal:** Multi-player rooms with saved state — share a link, jam together.
+
+| Deliverable | Details |
+|-------------|---------|
+| **Cosmos DB integration** | `azure_data_cosmos` client: CRUD on `rooms` container, partition key `/id`, 24-hour TTL auto-cleanup |
+| **Key Vault integration** | `azure_security_keyvault_secrets` loads Cosmos connection string (and future secrets) once at startup via `DefaultAzureCredential`, cached in-process |
+| **Room creation** | `POST /api/rooms` → generates UUID, persists starter pattern to Cosmos, returns `{ "room_id": "..." }` |
+| **Room joining** | `GET /api/rooms/:id` → fetches state from Cosmos (or in-memory cache). Shareable URL: `https://<host>/#room=<id>` |
+| **Multi-user broadcast** | One `tokio::sync::broadcast` channel per active room. Toggle/BPM messages fan out to all connected clients in < 1 ms. |
+| **State reconciliation** | On WebSocket connect: client receives full `state` message. On disconnect: `active_users` decremented. Last user out → room state flushed to Cosmos. |
+
+### Phase 3: Polish & Accessibility
+
+> **Goal:** Solo-play delight features, progressive UX, and foundational accessibility — make it feel like a toy, not a tool, and ensure it's usable by everyone.
+
+| Deliverable | Details |
+|-------------|---------|
+| **Progressive row reveal** | Grid starts with 1 row (BOOM 💥). Rows 2–4 fade in after ~10 s, ~20 s, ~30 s of interaction. CSS transitions, no layout shift. |
+| **🎲 Surprise Me button** | Generates a random pattern using smart constraints (kick anchored on beat 1, density varies, BPM randomized within 60–140) |
+| **🌊 Mood buttons** | Three buttons — **CHILL** / **HYPE** / **WEIRD** — that adjust pattern density, BPM range, and sample selection |
+| **Hidden combos** | Secret interaction triggers (e.g., tap BOOM 4× fast → "Earthquake" pattern). Discovered combos show a toast with 🔓 emoji. |
+| **Gamification** | Streak glow (4+ consecutive cells), per-cell ripple animations, combo discovery counter |
+| **Mobile touch** | Touch-optimized cell size (min 44×44 px), prevent scroll-on-tap, responsive grid breakpoints |
+| **Idle animations** | Subtle cell pulse on the current playback step, ambient glow on active rows |
+| **Keyboard navigation** | Full grid navigation with arrow keys, Space/Enter to toggle cells, Tab to switch tracks. Focus indicators on all interactive elements. |
+| **ARIA labels** | Screen reader support: grid cells announce "BOOM step 3, active" / "TICK step 7, inactive". Live region for playback status. |
+| **Reduced motion** | `@media (prefers-reduced-motion)` — disable cell animations, replace with opacity changes. Audio still works. |
+| **High contrast** | Active cells use high-contrast colors that pass WCAG AA (4.5:1 ratio) in both light and dark modes. |
+
+### Phase 4: Services Expansion
+
+> **Goal:** Integrate additional Azure SDK crates from [Section 15](#15-services-expansion-azure-sdk-for-rust) to unlock post-MVP features.
+
+| Sprint | Crate | Feature |
+|--------|-------|---------|
+| **4a** | `azure_storage_blob` | Custom sound packs — upload WAV/MP3 to Blob Storage, serve via CDN URLs. Export rendered loops as downloadable audio files. |
+| **4b** | `azure_messaging_servicebus` | Cross-replica room sync — Service Bus topics/subscriptions replace the single-replica constraint. Room expiry notifications and moderation pipeline. |
+| **4c** | `azure_storage_queue` | Async job queue — audio rendering, pattern export, and abuse-detection tasks processed off the WebSocket hot path. |
+| **4d** | `azure_security_keyvault_keys` | Signed shareable URLs — room invite links signed with KV-managed keys, time-boxed and tamper-proof. |
+| **4e** | `azure_security_keyvault_certificates` | mTLS between replicas — certificate-based inter-container auth for the multi-replica Service Bus topology. |
+
+### Phase Summary
+
+```
+Phase 0          Phase 1          Phase 2          Phase 3          Phase 4
+┌────────────┐   ┌────────────┐   ┌────────────┐   ┌────────────┐   ┌────────────┐
+│ Infra &    │   │ Core Beat  │   │ Persistence│   │ Polish &   │   │ Services   │
+│ Repo Setup │──▶│ Engine     │──▶│ & Rooms    │──▶│ Accessi-   │──▶│ Expansion  │
+│            │   │ (MVP)      │   │            │   │ bility     │   │            │
+│ ~2 days    │   │ ~4 days    │   │ ~3 days    │   │ ~3 days    │   │ Ongoing    │
+└────────────┘   └────────────┘   └────────────┘   └────────────┘   └────────────┘
+```
+
+---
+
+## 17. Developer Experience & AI Configuration
+
+beat-stream-rs is built with AI-assisted development in mind. Every contributor — human or AI — should have the context needed to make good decisions without reading the entire codebase.
+
+### Copilot Instructions File
+
+`.github/copilot-instructions.md` provides project context to GitHub Copilot and other AI assistants:
+
+```markdown
+# beat-stream-rs
+
+## Project Overview
+A real-time collaborative beat sequencer built in Rust on Azure Container Apps.
+Showcases Azure SDK for Rust across 8+ service crates.
+
+## Tech Stack
+- Rust (2021 edition), Axum web framework, Tokio async runtime
+- Azure SDK for Rust: identity, cosmos, keyvault, eventhubs, servicebus, storage
+- Frontend: Vanilla JS + Tone.js + Web Audio API
+- Infrastructure: Azure Container Apps, Cosmos DB serverless, Key Vault
+
+## Code Conventions
+- Use `thiserror` for error types, `anyhow` for application errors
+- Async everywhere — no blocking calls in the WebSocket path
+- All Azure SDK usage goes through `azure_identity::DefaultAzureCredential`
+- Emoji-based sound labels in UI (no music terminology)
+- Keep container image < 15MB (static linking, no glibc)
+
+## Architecture
+- Single Axum binary serving both API and static files
+- One `tokio::broadcast` channel per room for real-time sync
+- Cosmos DB for persistence (rooms, patterns, user prefs)
+- Key Vault for secrets (loaded once at startup, cached)
+
+## Testing
+- Unit tests: `cargo test`
+- Integration tests: `cargo test --features integration` (requires Azure resources)
+- Frontend: manual testing via browser (no JS test framework yet)
+```
+
+### Repository Configuration Files
+
+| File | Purpose |
+|------|---------|
+| `.github/copilot-instructions.md` | AI assistant context (shown above) |
+| `.github/CONTRIBUTING.md` | Local dev setup, test commands, deployment guide, PR conventions |
+| `rust-toolchain.toml` | Pins Rust version (e.g., `channel = "1.82"`) for reproducible builds across machines and CI |
+| `.cargo/config.toml` | Workspace-wide Cargo settings: default target, linker flags, `[net]` retry config |
+| `deny.toml` | `cargo-deny` configuration: license allow-list, RustSec advisory database, ban duplicate crate versions |
+| `.devcontainer/devcontainer.json` | VS Code dev container: Rust toolchain + `rust-analyzer` + Azure CLI + `azd` + `cargo-deny` + Docker-in-Docker |
+| `.env.example` | Template for local environment variables: Cosmos connection, Key Vault URL, Container Apps endpoint |
+
+### AI Context Files
+
+These files exist specifically to give AI assistants (and new contributors) fast orientation:
+
+| File | Contents |
+|------|----------|
+| `ARCHITECTURE.md` | High-level system diagram, data flow from client → WebSocket → broadcast → Cosmos, component responsibilities, scaling boundaries |
+| `docs/adr/0001-websocket-over-eventhubs.md` | Why we chose in-process broadcast over Event Hubs for real-time sync (latency analysis) |
+| `docs/adr/0002-no-frontend-framework.md` | Why vanilla JS + Tone.js instead of React/Vue (bundle size, complexity trade-off) |
+| `docs/adr/0003-cosmos-serverless.md` | Why serverless Cosmos over provisioned throughput (cost model, TTL strategy) |
+| `docs/adr/0004-service-bus-over-redis.md` | Why Azure Service Bus replaces the Redis pub/sub idea for cross-replica sync (all-Azure stack) |
+
+> **ADR format:** Each Architecture Decision Record follows the [MADR template](https://adr.github.io/madr/) — Title, Status, Context, Decision, Consequences. AI assistants can read these to understand *why* decisions were made, not just *what* was decided.
+
+### Dev Container Specification
+
+The `.devcontainer/devcontainer.json` ensures every contributor has an identical environment:
+
+```jsonc
+{
+  "name": "beat-stream-rs",
+  "image": "mcr.microsoft.com/devcontainers/rust:1",
+  "features": {
+    "ghcr.io/devcontainers/features/azure-cli:1": {},
+    "ghcr.io/azure/azure-dev/azd:latest": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "postCreateCommand": "cargo install cargo-deny && rustup component add clippy rustfmt",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "ms-azuretools.vscode-docker",
+        "GitHub.copilot"
+      ]
+    }
+  },
+  "forwardPorts": [8080]
+}
+```
+
+---
+
 ## Appendix: Why Rust?
 
-1. **Tiny container image** — A statically-linked Rust binary is ~10 MB. Node.js or Python containers start at 100+ MB.
+1. **Tiny container image** — A statically-linked Rust binary with Azure SDK crates is ~15 MB. Node.js or Python containers start at 100+ MB.
 2. **Predictable latency** — No garbage collector means no GC pauses during WebSocket broadcasts.
 3. **Azure SDK alignment** — The Azure SDK for Rust is approaching GA. beat-stream-rs serves as a real-world validation of the SDK.
 4. **Single binary deployment** — `cargo build --release` produces one file. No `node_modules`, no virtual environments.
