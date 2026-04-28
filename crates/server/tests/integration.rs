@@ -14,6 +14,7 @@
 //     UserLeft   → {"type":"UserLeft","count":1}
 //     Error      → {"type":"Error","message":"..."}
 
+#[allow(unused_imports)]
 use tokio_tungstenite::tungstenite::Message;
 
 // ── Health / Static Serving ─────────────────────────────────────────────────
@@ -220,6 +221,7 @@ async fn all_six_starter_patterns_available() {
 
 // ── Test Helpers ────────────────────────────────────────────────────────────
 
+#[allow(dead_code)]
 /// Start test server on an OS-assigned random port (port 0) and return the base URL.
 ///
 /// Uses `TcpListener::bind("127.0.0.1:0")` so each test gets its own port,
@@ -233,6 +235,7 @@ async fn start_test_server() -> String {
     todo!("Implement start_test_server with port 0 binding");
 }
 
+#[allow(dead_code)]
 /// Establish a WebSocket connection to ws://{base_url}/ws/{room_id}.
 async fn connect_ws_client(
     base_url: &str,
@@ -247,6 +250,7 @@ async fn connect_ws_client(
     todo!("Implement connect_ws_client");
 }
 
+#[allow(dead_code)]
 /// Read the next text message from a WebSocket stream.
 async fn receive_message(
     ws: &mut tokio_tungstenite::WebSocketStream<
