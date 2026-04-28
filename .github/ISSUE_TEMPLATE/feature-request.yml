@@ -1,0 +1,49 @@
+name: Feature Request
+description: Suggest a new feature for beat-stream-rs
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Got an idea? We'd love to hear it!
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Feature Summary
+      description: One-line description of the feature
+      placeholder: "Add room persistence so beats survive server restarts"
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: Why is this feature needed? What problem does it solve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution
+      description: How should this work? Include API changes, UI mockups, or architecture ideas.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Other approaches you've thought about
+
+  - type: dropdown
+    id: phase
+    attributes:
+      label: PRD Phase
+      description: Which phase does this relate to?
+      options:
+        - "Phase 1: Core Engine"
+        - "Phase 2: Persistence & Patterns"
+        - "Phase 3: Social & Polish"
+        - "Phase 4: Scale & Observe"
+        - "New / Unplanned"

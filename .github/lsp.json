@@ -1,0 +1,9 @@
+{
+  "rust-analyzer": {
+    "check.command": "clippy",
+    "check.allFeatures": true,
+    "procMacro.enable": true,
+    "cargo.allFeatures": true,
+    "diagnostics.experimental.enable": true
+  }
+}
