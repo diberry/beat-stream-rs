@@ -105,45 +105,117 @@ impl PatternName {
         match self {
             // Four-on-the-floor with offbeat hi-hats
             PatternName::Chill => [
-                [true, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false],
-                [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false],
-                [false, false, true, false, false, false, true, false, false, false, true, false, false, false, true, false],
-                [true, false, false, false, false, false, false, false, true, false, false, false, false, false, false, false],
+                [
+                    true, false, false, false, true, false, false, false, true, false, false,
+                    false, true, false, false, false,
+                ],
+                [
+                    false, false, false, false, true, false, false, false, false, false, false,
+                    false, true, false, false, false,
+                ],
+                [
+                    false, false, true, false, false, false, true, false, false, false, true,
+                    false, false, false, true, false,
+                ],
+                [
+                    true, false, false, false, false, false, false, false, true, false, false,
+                    false, false, false, false, false,
+                ],
             ],
             // Syncopated bounce
             PatternName::Bounce => [
-                [true, false, false, true, false, false, true, false, false, true, false, false, true, false, false, false],
-                [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, true],
-                [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true],
-                [false, false, true, false, false, true, false, false, true, false, false, true, false, false, true, false],
+                [
+                    true, false, false, true, false, false, true, false, false, true, false,
+                    false, true, false, false, false,
+                ],
+                [
+                    false, false, false, false, true, false, false, false, false, false, false,
+                    false, true, false, false, true,
+                ],
+                [
+                    true, true, true, true, true, true, true, true, true, true, true, true,
+                    true, true, true, true,
+                ],
+                [
+                    false, false, true, false, false, true, false, false, true, false, false,
+                    true, false, false, true, false,
+                ],
             ],
             // Driving pulse
             PatternName::Pulse => [
-                [true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false],
-                [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false],
-                [true, false, false, true, false, false, true, false, false, true, false, false, true, false, false, true],
-                [true, false, false, false, false, false, false, false, true, false, false, false, false, false, false, false],
+                [
+                    true, false, true, false, true, false, true, false, true, false, true,
+                    false, true, false, true, false,
+                ],
+                [
+                    false, false, false, false, true, false, false, false, false, false, false,
+                    false, true, false, false, false,
+                ],
+                [
+                    true, false, false, true, false, false, true, false, false, true, false,
+                    false, true, false, false, true,
+                ],
+                [
+                    true, false, false, false, false, false, false, false, true, false, false,
+                    false, false, false, false, false,
+                ],
             ],
             // Minimal / sparse
             PatternName::Sparse => [
-                [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false],
-                [false, false, false, false, true, false, false, false, false, false, false, false, false, false, false, false],
-                [false, false, false, false, false, false, false, false, true, false, false, false, false, false, false, false],
-                [false, false, false, false, false, false, false, false, false, false, false, false, true, false, false, false],
+                [
+                    true, false, false, false, false, false, false, false, false, false, false,
+                    false, false, false, false, false,
+                ],
+                [
+                    false, false, false, false, true, false, false, false, false, false, false,
+                    false, false, false, false, false,
+                ],
+                [
+                    false, false, false, false, false, false, false, false, true, false, false,
+                    false, false, false, false, false,
+                ],
+                [
+                    false, false, false, false, false, false, false, false, false, false, false,
+                    false, true, false, false, false,
+                ],
             ],
             // Lots of notes
             PatternName::Chaos => [
-                [true, false, true, true, false, true, false, true, true, false, true, false, true, true, false, true],
-                [false, true, false, true, true, false, true, false, false, true, false, true, false, true, true, false],
-                [true, true, false, true, false, true, true, false, true, true, false, true, false, true, true, false],
-                [false, true, true, false, true, false, false, true, false, true, true, false, true, false, false, true],
+                [
+                    true, false, true, true, false, true, false, true, true, false, true, false,
+                    true, true, false, true,
+                ],
+                [
+                    false, true, false, true, true, false, true, false, false, true, false, true,
+                    false, true, true, false,
+                ],
+                [
+                    true, true, false, true, false, true, true, false, true, true, false, true,
+                    false, true, true, false,
+                ],
+                [
+                    false, true, true, false, true, false, false, true, false, true, true, false,
+                    true, false, false, true,
+                ],
             ],
             // Heartbeat rhythm (boom-boom … boom-boom)
             PatternName::Heartbeat => [
-                [true, false, true, false, false, false, false, false, true, false, true, false, false, false, false, false],
-                [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false],
-                [false, false, true, false, false, false, true, false, false, false, true, false, false, false, true, false],
-                [true, false, false, false, false, false, false, false, true, false, false, false, false, false, false, false],
+                [
+                    true, false, true, false, false, false, false, false, true, false, true,
+                    false, false, false, false, false,
+                ],
+                [
+                    false, false, false, false, true, false, false, false, false, false, false,
+                    false, true, false, false, false,
+                ],
+                [
+                    false, false, true, false, false, false, true, false, false, false, true,
+                    false, false, false, true, false,
+                ],
+                [
+                    true, false, false, false, false, false, false, false, true, false, false,
+                    false, false, false, false, false,
+                ],
             ],
         }
     }
@@ -211,11 +283,17 @@ mod tests {
         let state = RoomState::new("r".into(), &PatternName::Chill.grid(), 100);
         let msgs = vec![
             ServerMessage::State { room: state },
-            ServerMessage::Toggle { track: 0, step: 3, user_id: "u1".into() },
+            ServerMessage::Toggle {
+                track: 0,
+                step: 3,
+                user_id: "u1".into(),
+            },
             ServerMessage::BpmChanged { bpm: 90 },
             ServerMessage::UserJoined { count: 2 },
             ServerMessage::UserLeft { count: 1 },
-            ServerMessage::Error { message: "oops".into() },
+            ServerMessage::Error {
+                message: "oops".into(),
+            },
         ];
         for msg in msgs {
             let json = serde_json::to_string(&msg).unwrap();
