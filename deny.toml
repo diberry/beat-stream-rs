@@ -1,15 +1,7 @@
 # cargo-deny configuration — supply chain security
-# See: https://embarkstudios.github.io/cargo-deny/
-# Run: cargo deny check
-
-[advisories]
-vulnerability = "deny"
-unmaintained = "warn"
-yanked = "warn"
-notice = "warn"
+# https://embarkstudios.github.io/cargo-deny/
 
 [licenses]
-unlicensed = "deny"
 allow = [
     "MIT",
     "Apache-2.0",
@@ -21,11 +13,15 @@ allow = [
     "MPL-2.0",
     "Zlib",
     "OpenSSL",
-    "Ring",
     "BSL-1.0",
 ]
 confidence-threshold = 0.8
-copyleft = "deny"
+
+exceptions = [
+    { allow = ["ISC", "MIT", "OpenSSL"], crate = "ring" },
+]
+
+[advisories]
 
 [bans]
 multiple-versions = "warn"
