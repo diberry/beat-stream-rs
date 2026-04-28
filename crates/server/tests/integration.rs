@@ -237,9 +237,7 @@ async fn start_test_server() -> String {
 async fn connect_ws_client(
     base_url: &str,
     room_id: &str,
-) -> tokio_tungstenite::WebSocketStream<
-    tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
-> {
+) -> tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>> {
     // TODO: Convert base_url http:// → ws://, connect to /ws/{room_id}
     // let ws_url = base_url.replace("http://", "ws://");
     // let (ws_stream, _) = tokio_tungstenite::connect_async(
