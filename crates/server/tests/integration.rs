@@ -21,6 +21,7 @@ use tokio_tungstenite::tungstenite::Message;
 
 /// Health Endpoint Tests
 #[tokio::test]
+#[ignore] // TODO stub — awaiting implementation
 async fn health_endpoint_returns_200_with_ok_status() {
     // TODO: Implement health check test
     // - Start test server via start_test_server()
@@ -30,6 +31,7 @@ async fn health_endpoint_returns_200_with_ok_status() {
 }
 
 #[tokio::test]
+#[ignore] // TODO stub — awaiting implementation
 async fn get_root_serves_index_html() {
     // TODO: Implement static file serving test
     // - Start test server via start_test_server()
@@ -41,6 +43,7 @@ async fn get_root_serves_index_html() {
 }
 
 #[tokio::test]
+#[ignore] // TODO stub — awaiting implementation
 async fn get_api_health_returns_json() {
     // TODO: Implement health endpoint JSON test
     // - Start test server via start_test_server()
