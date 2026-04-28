@@ -19,6 +19,12 @@ param keyVaultUri string
 @description('Endpoint of the Cosmos DB account.')
 param cosmosEndpoint string
 
+@description('Resource ID of the User-Assigned Managed Identity.')
+param identityId string
+
+@description('Client ID of the User-Assigned Managed Identity.')
+param identityClientId string
+
 var containerAppsEnvName = '${environmentName}-env'
 var containerAppName = 'beatstream'
 
@@ -42,11 +48,15 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
   location: location
   tags: tags
   identity: {
-    type: 'SystemAssigned'
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${identityId}': {}
+    }
   }
   properties: {
     managedEnvironmentId: containerAppsEnv.id
     configuration: {
+      // TODO: Post-MVP — add IP restrictions or Easy Auth
       ingress: {
         external: true
         targetPort: 8080
@@ -58,7 +68,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
       registries: [
         {
           server: acrLoginServer
-          identity: 'system'
+          identity: identityId
         }
       ]
     }
@@ -66,7 +76,8 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
       containers: [
         {
           name: containerAppName
-          image: '${acrLoginServer}/${containerAppName}:latest'
+          // Init image for first deploy; CI/CD will replace with the real ACR image
+          image: 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
           resources: {
             cpu: json('0.5')
             memory: '1Gi'
@@ -79,6 +90,10 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
             {
               name: 'KEY_VAULT_URI'
               value: keyVaultUri
+            }
+            {
+              name: 'AZURE_CLIENT_ID'
+              value: identityClientId
             }
             {
               name: 'RUST_LOG'
@@ -104,9 +119,6 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
     }
   }
 }
-
-@description('Principal ID of the Container App managed identity.')
-output containerAppPrincipalId string = containerApp.identity.principalId
 
 @description('FQDN of the Container App.')
 output containerAppFqdn string = containerApp.properties.configuration.ingress.fqdn

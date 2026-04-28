@@ -7,8 +7,8 @@ param environmentName string
 @description('Tags to apply to all resources.')
 param tags object = {}
 
-@description('Principal ID of the Container App managed identity.')
-param containerAppPrincipalId string
+@description('Principal ID of the managed identity for RBAC.')
+param principalId string
 
 // Cosmos DB Built-in Data Contributor role
 var cosmosDataContributorRoleId = '00000000-0000-0000-0000-000000000002'
@@ -80,9 +80,9 @@ resource patternsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/c
 
 resource cosmosDataContributorAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-02-15-preview' = {
   parent: cosmosAccount
-  name: guid(cosmosAccount.id, containerAppPrincipalId, cosmosDataContributorRoleId)
+  name: guid(cosmosAccount.id, principalId, cosmosDataContributorRoleId)
   properties: {
-    principalId: containerAppPrincipalId
+    principalId: principalId
     roleDefinitionId: '${cosmosAccount.id}/sqlRoleDefinitions/${cosmosDataContributorRoleId}'
     scope: cosmosAccount.id
   }

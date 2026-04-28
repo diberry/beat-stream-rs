@@ -9,6 +9,19 @@ param environmentName string
 @description('Tags to apply to all resources.')
 param tags object = {}
 
+@description('Contact email for budget alerts.')
+param contactEmail string
+
+// --- User-Assigned Managed Identity (deploys FIRST — breaks circular dependency) ---
+module identity 'modules/identity.bicep' = {
+  name: 'identity'
+  params: {
+    name: '${environmentName}-id'
+    location: location
+    tags: tags
+  }
+}
+
 // --- Monitoring ---
 module monitoring 'modules/monitoring.bicep' = {
   name: 'monitoring'
@@ -19,14 +32,36 @@ module monitoring 'modules/monitoring.bicep' = {
   }
 }
 
-// --- ACR (deployed early so login server is available) ---
+// --- ACR ---
 module acr 'modules/acr.bicep' = {
   name: 'acr'
   params: {
     location: location
     environmentName: environmentName
     tags: tags
-    containerAppPrincipalId: containerApps.outputs.containerAppPrincipalId
+    principalId: identity.outputs.principalId
+  }
+}
+
+// --- Cosmos DB ---
+module cosmos 'modules/cosmos-db.bicep' = {
+  name: 'cosmos'
+  params: {
+    location: location
+    environmentName: environmentName
+    tags: tags
+    principalId: identity.outputs.principalId
+  }
+}
+
+// --- Key Vault ---
+module keyVault 'modules/key-vault.bicep' = {
+  name: 'keyVault'
+  params: {
+    location: location
+    environmentName: environmentName
+    tags: tags
+    principalId: identity.outputs.principalId
   }
 }
 
@@ -38,31 +73,19 @@ module containerApps 'modules/container-apps.bicep' = {
     environmentName: environmentName
     tags: tags
     logAnalyticsId: monitoring.outputs.logAnalyticsId
-    acrLoginServer: '${replace(replace(environmentName, '-', ''), '_', '')}.azurecr.io'
+    acrLoginServer: acr.outputs.acrLoginServer
     keyVaultUri: keyVault.outputs.keyVaultUri
     cosmosEndpoint: cosmos.outputs.cosmosEndpoint
+    identityId: identity.outputs.identityId
+    identityClientId: identity.outputs.clientId
   }
 }
 
-// --- Cosmos DB ---
-module cosmos 'modules/cosmos-db.bicep' = {
-  name: 'cosmos'
+// --- Budget Alert ($20/month) ---
+module budget 'modules/budget.bicep' = {
+  name: 'budget'
   params: {
-    location: location
-    environmentName: environmentName
-    tags: tags
-    containerAppPrincipalId: containerApps.outputs.containerAppPrincipalId
-  }
-}
-
-// --- Key Vault ---
-module keyVault 'modules/key-vault.bicep' = {
-  name: 'keyVault'
-  params: {
-    location: location
-    environmentName: environmentName
-    tags: tags
-    containerAppPrincipalId: containerApps.outputs.containerAppPrincipalId
+    contactEmail: contactEmail
   }
 }
 

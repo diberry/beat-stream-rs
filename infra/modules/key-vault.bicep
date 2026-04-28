@@ -7,8 +7,8 @@ param environmentName string
 @description('Tags to apply to all resources.')
 param tags object = {}
 
-@description('Principal ID of the Container App managed identity.')
-param containerAppPrincipalId string
+@description('Principal ID of the managed identity for RBAC.')
+param principalId string
 
 @description('Tenant ID for the deployment.')
 param tenantId string = subscription().tenantId
@@ -30,15 +30,15 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
     tenantId: tenantId
     enableRbacAuthorization: true
     enableSoftDelete: true
-    softDeleteRetentionInDays: 7
+    softDeleteRetentionInDays: 30
   }
 }
 
 resource keyVaultSecretsUserRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(keyVault.id, containerAppPrincipalId, keyVaultSecretsUserRoleId)
+  name: guid(keyVault.id, principalId, keyVaultSecretsUserRoleId)
   scope: keyVault
   properties: {
-    principalId: containerAppPrincipalId
+    principalId: principalId
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', keyVaultSecretsUserRoleId)
     principalType: 'ServicePrincipal'
   }

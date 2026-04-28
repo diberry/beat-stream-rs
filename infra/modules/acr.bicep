@@ -7,8 +7,8 @@ param environmentName string
 @description('Tags to apply to all resources.')
 param tags object = {}
 
-@description('Principal ID of the Container App managed identity.')
-param containerAppPrincipalId string
+@description('Principal ID of the managed identity for RBAC.')
+param principalId string
 
 // AcrPull role
 var acrPullRoleId = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
@@ -28,10 +28,10 @@ resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
 }
 
 resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(acr.id, containerAppPrincipalId, acrPullRoleId)
+  name: guid(acr.id, principalId, acrPullRoleId)
   scope: acr
   properties: {
-    principalId: containerAppPrincipalId
+    principalId: principalId
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', acrPullRoleId)
     principalType: 'ServicePrincipal'
   }
