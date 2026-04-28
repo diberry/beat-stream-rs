@@ -14,14 +14,24 @@ tower-http = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
-azure_identity = { workspace = true }
-azure_data_cosmos = { workspace = true }
-azure_security_keyvault_secrets = { workspace = true }
+dashmap = { workspace = true }
+rand = { workspace = true }
+parking_lot = { workspace = true }
+futures-util = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 beat-stream-shared = { workspace = true }
+
+# Phase 2 (Cosmos DB / Key Vault) — not yet needed
+# azure_identity = { workspace = true }
+# azure_data_cosmos = { workspace = true }
+# azure_security_keyvault_secrets = { workspace = true }
+
+[dev-dependencies]
+tokio-tungstenite = "0.26"
+futures-util = "0.3"
 
 [features]
 integration = []
