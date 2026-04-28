@@ -1,0 +1,25 @@
+[workspace]
+members = ["crates/server", "crates/shared"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+axum = { version = "0.8", features = ["ws"] }
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.6", features = ["cors", "fs"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
+azure_identity = "0.22"
+azure_data_cosmos = "0.22"
+azure_security_keyvault_secrets = "0.22"
+thiserror = "2"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+
+# Shared crate (internal)
+beat-stream-shared = { path = "crates/shared" }

@@ -1,0 +1,13 @@
+[package]
+name = "beat-stream-shared"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "beat_stream_shared"
+path = "src/lib.rs"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
