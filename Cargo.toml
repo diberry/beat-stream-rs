@@ -19,4 +19,4 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
 
 # Shared crate (internal)
-beat-stream-shared = { path = "crates/shared" }
+beat-stream-shared = { path = "crates/shared", version = "0.1" }
