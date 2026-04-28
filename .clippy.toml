@@ -5,7 +5,7 @@
 too-many-lines-threshold = 150
 
 # Cognitive complexity threshold
-cognitive-complexity-threshold = 30
+cognitive-complexity-threshold = 25
 
 # Type complexity threshold (WebSocket types can get nested)
-type-complexity-threshold = 300
+type-complexity-threshold = 250
