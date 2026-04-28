@@ -16,14 +16,17 @@
   - `test_room_new_pattern_assigned` - Verify a starter pattern is assigned to all tracks
 
 ### 1.2 Starter Patterns
-- **Objective:** Validate all 6 starter patterns have correct structure
+- **Objective:** Validate all 6 starter patterns (Chill, Bounce, Pulse, Sparse, Chaos, Heartbeat) have correct structure
 - **Tests:**
   - `test_starter_patterns_have_correct_dimensions` - Each pattern: 4 tracks × 16 steps
   - `test_starter_patterns_all_valid_bools` - All cells are valid boolean values (true/false)
-  - `test_starter_patterns_count` - Exactly 6 patterns available
+  - `test_starter_patterns_count` - Exactly 6 patterns available (`PatternName::ALL.len() == 6`)
 
 ### 1.3 WebSocket Message Serialization
-- **Objective:** Ensure messages serialize/deserialize correctly
+- **Objective:** Ensure messages serialize/deserialize correctly per `#[serde(tag = "type")]`
+- **Message format reference:**
+  - ClientMessage (internally tagged): `Toggle` → `{"type":"Toggle","track":0,"step":0}`, `SetBpm` → `{"type":"SetBpm","bpm":120}`, `RequestState` → `{"type":"RequestState"}`
+  - ServerMessage (internally tagged): `State` → `{"type":"State","room":{...}}`, `Toggle` → `{"type":"Toggle","track":0,"step":0,"user_id":"..."}`, `BpmChanged` → `{"type":"BpmChanged","bpm":120}`
 - **Tests:**
   - `test_client_message_serde_roundtrip` - ClientMessage encode → decode matches original
   - `test_server_message_serde_roundtrip` - ServerMessage encode → decode matches original
@@ -42,6 +45,8 @@
   - `test_rate_limit_enforced_at_20_per_second` - >20 msg/s are dropped without disconnecting
   - `test_rate_limit_does_not_disconnect` - Client remains connected after rate limit hit
   - `test_rate_limit_resets_per_client` - Limit is per-client, not global
+  - `test_rate_limit_window_resets_after_one_second` - After 1s window elapses, client can send again
+  - `test_rate_limit_per_client_isolation` - Client A hitting limit does not affect Client B
 
 ### 1.6 Room Cleanup
 - **Objective:** Verify rooms are removed when last client disconnects
@@ -76,30 +81,30 @@
 - **Objective:** Verify client connects and receives initial state
 - **Test:** `test_websocket_connects_and_receives_state`
   - Connect via WS to /ws/{room_id}
-  - Verify: First message is a State message with grid, BPM, room_id
+  - Verify: First message is `{"type":"State","room":{"id":"...","tracks":[...],"bpm":120,"active_users":1}}`
 
 ### 2.4 Multi-Client Sync
 - **Objective:** Verify two clients in same room receive state updates
 - **Test:** `test_two_clients_sync_grid_changes`
   - Client A connects to room
   - Client B connects to same room
-  - Client A toggles a cell
-  - Verify: Client B receives CellToggled message with correct cell index and new state
+  - Client A sends Toggle: `{"type":"Toggle","track":0,"step":0}`
+  - Verify: Client B receives Toggle broadcast: `{"type":"Toggle","track":0,"step":0,"user_id":"..."}`
 
 ### 2.5 BPM Sync
 - **Objective:** Verify all clients receive BPM updates
 - **Test:** `test_bpm_change_syncs_to_all_clients`
   - Client A connects
   - Client B connects
-  - Client A sends SetBpm(80)
-  - Verify: Both A and B receive BpmChanged message with BPM=80
+  - Client A sends: `{"type":"SetBpm","bpm":80}`
+  - Verify: Both A and B receive `{"type":"BpmChanged","bpm":80}`
 
 ### 2.6 Room Lifecycle
 - **Objective:** Verify create → connect → disconnect → cleanup flow
 - **Test:** `test_full_room_lifecycle`
   - POST /api/rooms → get room_id
   - WS connect to /ws/{room_id}
-  - Send one message
+  - Send: `{"type":"Toggle","track":0,"step":5}`
   - Disconnect
   - Verify: Room is cleaned up (room no longer exists in manager)
 
