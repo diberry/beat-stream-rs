@@ -413,6 +413,45 @@ Week 1                          Week 2
 
 ---
 
+## 15. Services Expansion (Azure SDK for Rust)
+
+The Azure SDK for Rust provides crates across identity, data, messaging, storage, and security. The MVP uses three (`azure_identity`, `azure_data_cosmos`, `azure_security_keyvault_secrets`) with a fourth (`azure_messaging_eventhubs`) planned for post-MVP analytics. The full SDK surface area offers natural expansion paths that keep beat-stream-rs on a single technology stack — no sidecar services, no polyglot dependencies.
+
+The table below maps every remaining SDK crate to a concrete beat-stream-rs feature, prioritized by user value.
+
+### New Crates Beyond MVP
+
+| Crate | Feature It Enables | Priority | When to Add |
+|-------|-------------------|----------|-------------|
+| `azure_storage_blob` | **Custom sound packs & audio export.** Users upload WAV/MP3 files to Blob Storage; the frontend fetches them via CDN URLs. Also powers the share/export feature — rendered loops are written to Blob and returned as downloadable links. | 🥇 | First post-MVP sprint |
+| `azure_messaging_servicebus` | **Cross-replica room sync.** Service Bus topics/subscriptions replace the Redis pub/sub idea from the risk table — keeping the stack all-Azure. A `room-events` topic fans out toggle/BPM messages across replicas. Also enables: room expiry notifications, moderation pipelines, and webhook triggers for integrations. | 🥇 | When scaling beyond 1 replica |
+| `azure_storage_queue` | **Async job queue.** Fire-and-forget tasks (audio rendering, pattern export, abuse-detection) are enqueued without blocking the WebSocket loop. A background `tokio::spawn` worker polls the queue and processes jobs. | 🥈 | After export feature lands |
+| `azure_security_keyvault_keys` | **Signed shareable URLs.** Room links are signed with Key Vault-managed keys so they can't be forged or enumerated. Enables short-lived signed URLs for private rooms and time-boxed invite links. | 🥈 | After public room discovery |
+| `azure_security_keyvault_certificates` | **mTLS between replicas.** In a multi-replica deployment, certificates from Key Vault authenticate inter-container traffic. Prevents unauthorized containers from joining the Service Bus topic. | 🥉 | Production hardening phase |
+
+### Full SDK Crate Map
+
+For reference, the complete set of `azure-sdk-for-rust` crates and their beat-stream-rs status:
+
+| Service Area | Crate | Status |
+|-------------|-------|--------|
+| Core | `azure_core` | ✅ Implicit dependency |
+| Identity | `azure_identity` | ✅ MVP |
+| Cosmos DB | `azure_data_cosmos` | ✅ MVP |
+| Key Vault — Secrets | `azure_security_keyvault_secrets` | ✅ MVP |
+| Event Hubs | `azure_messaging_eventhubs` | 📋 Planned (post-MVP analytics) |
+| Storage — Blob | `azure_storage_blob` | 🔜 Post-MVP (sound packs, export) |
+| Service Bus | `azure_messaging_servicebus` | 🔜 Post-MVP (cross-replica sync) |
+| Storage — Queue | `azure_storage_queue` | 🔜 Post-MVP (async jobs) |
+| Key Vault — Keys | `azure_security_keyvault_keys` | 🔜 Post-MVP (signed URLs) |
+| Key Vault — Certificates | `azure_security_keyvault_certificates` | 🔜 Post-MVP (mTLS) |
+
+### Showcase Value
+
+> beat-stream-rs naturally incorporates **8+ Azure SDK for Rust crates** in a single, real-world application — spanning identity, database, messaging, storage, and security. This makes it a compelling end-to-end showcase for the SDK's breadth, demonstrating that a non-trivial production app can run entirely on Azure services with a pure-Rust dependency chain.
+
+---
+
 ## Appendix: Why Rust?
 
 1. **Tiny container image** — A statically-linked Rust binary is ~10 MB. Node.js or Python containers start at 100+ MB.
