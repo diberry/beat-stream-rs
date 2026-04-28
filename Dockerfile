@@ -12,6 +12,9 @@ RUN cargo build --release --bin beat-stream-server
 FROM gcr.io/distroless/cc-debian12
 
 COPY --from=builder /app/target/release/beat-stream-server /beat-stream-server
+COPY frontend/dist/ /static/
+
+ENV STATIC_DIR=/static
 
 EXPOSE 8080
 

@@ -17,9 +17,11 @@ async fn main() -> anyhow::Result<()> {
     let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
     let addr = format!("0.0.0.0:{port}");
 
+    let static_dir = std::env::var("STATIC_DIR").unwrap_or_else(|_| "./static".into());
+
     let app = Router::new()
         .route("/api/health", get(health))
-        .fallback_service(ServeDir::new("../../frontend/dist"));
+        .fallback_service(ServeDir::new(&static_dir));
 
     tracing::info!("Listening on {addr}");
 
