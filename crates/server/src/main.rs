@@ -26,10 +26,7 @@ async fn create_room(State(mgr): State<AppState>) -> Json<serde_json::Value> {
     Json(json!({ "room_id": room_id }))
 }
 
-async fn get_room(
-    State(mgr): State<AppState>,
-    Path(id): Path<String>,
-) -> impl IntoResponse {
+async fn get_room(State(mgr): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
     match mgr.get_state(&id) {
         Some(state) => Ok(Json(state)),
         None => Err((axum::http::StatusCode::NOT_FOUND, "room not found")),

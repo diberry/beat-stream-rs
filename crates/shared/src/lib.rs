@@ -71,12 +71,26 @@ pub enum ClientMessage {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type")]
 pub enum ServerMessage {
-    State { room: RoomState },
-    Toggle { track: u8, step: u8, user_id: String },
-    BpmChanged { bpm: u16 },
-    UserJoined { count: u32 },
-    UserLeft { count: u32 },
-    Error { message: String },
+    State {
+        room: RoomState,
+    },
+    Toggle {
+        track: u8,
+        step: u8,
+        user_id: String,
+    },
+    BpmChanged {
+        bpm: u16,
+    },
+    UserJoined {
+        count: u32,
+    },
+    UserLeft {
+        count: u32,
+    },
+    Error {
+        message: String,
+    },
 }
 
 // ── Starter patterns ────────────────────────────────────────────────────────
@@ -125,35 +139,35 @@ impl PatternName {
             // Syncopated bounce
             PatternName::Bounce => [
                 [
-                    true, false, false, true, false, false, true, false, false, true, false,
-                    false, true, false, false, false,
+                    true, false, false, true, false, false, true, false, false, true, false, false,
+                    true, false, false, false,
                 ],
                 [
                     false, false, false, false, true, false, false, false, false, false, false,
                     false, true, false, false, true,
                 ],
                 [
-                    true, true, true, true, true, true, true, true, true, true, true, true,
-                    true, true, true, true,
+                    true, true, true, true, true, true, true, true, true, true, true, true, true,
+                    true, true, true,
                 ],
                 [
-                    false, false, true, false, false, true, false, false, true, false, false,
-                    true, false, false, true, false,
+                    false, false, true, false, false, true, false, false, true, false, false, true,
+                    false, false, true, false,
                 ],
             ],
             // Driving pulse
             PatternName::Pulse => [
                 [
-                    true, false, true, false, true, false, true, false, true, false, true,
-                    false, true, false, true, false,
+                    true, false, true, false, true, false, true, false, true, false, true, false,
+                    true, false, true, false,
                 ],
                 [
                     false, false, false, false, true, false, false, false, false, false, false,
                     false, true, false, false, false,
                 ],
                 [
-                    true, false, false, true, false, false, true, false, false, true, false,
-                    false, true, false, false, true,
+                    true, false, false, true, false, false, true, false, false, true, false, false,
+                    true, false, false, true,
                 ],
                 [
                     true, false, false, false, false, false, false, false, true, false, false,
@@ -201,8 +215,8 @@ impl PatternName {
             // Heartbeat rhythm (boom-boom … boom-boom)
             PatternName::Heartbeat => [
                 [
-                    true, false, true, false, false, false, false, false, true, false, true,
-                    false, false, false, false, false,
+                    true, false, true, false, false, false, false, false, true, false, true, false,
+                    false, false, false, false,
                 ],
                 [
                     false, false, false, false, true, false, false, false, false, false, false,

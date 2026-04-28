@@ -1,4 +1,6 @@
-use beat_stream_shared::{PatternName, RoomState, ServerMessage, DEFAULT_BPM, NUM_TRACKS, NUM_STEPS};
+use beat_stream_shared::{
+    PatternName, RoomState, ServerMessage, DEFAULT_BPM, NUM_STEPS, NUM_TRACKS,
+};
 use dashmap::DashMap;
 use rand::Rng;
 use std::sync::atomic::{AtomicU32, Ordering};

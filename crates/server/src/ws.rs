@@ -136,9 +136,7 @@ pub async fn handle_socket(socket: WebSocket, mgr: Arc<RoomManager>, room_id: St
             },
             ClientMessage::RequestState => {
                 if let Some(state) = mgr.get_state(&room_id) {
-                    let _ = direct_tx
-                        .send(ServerMessage::State { room: state })
-                        .await;
+                    let _ = direct_tx.send(ServerMessage::State { room: state }).await;
                 }
             }
         }
