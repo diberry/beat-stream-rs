@@ -238,8 +238,8 @@ async fn start_test_server() -> String {
 #[allow(dead_code)]
 /// Establish a WebSocket connection to ws://{base_url}/ws/{room_id}.
 async fn connect_ws_client(
-    base_url: &str,
-    room_id: &str,
+    _base_url: &str,
+    _room_id: &str,
 ) -> tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>> {
     // TODO: Convert base_url http:// → ws://, connect to /ws/{room_id}
     // let ws_url = base_url.replace("http://", "ws://");
@@ -253,7 +253,7 @@ async fn connect_ws_client(
 #[allow(dead_code)]
 /// Read the next text message from a WebSocket stream.
 async fn receive_message(
-    ws: &mut tokio_tungstenite::WebSocketStream<
+    _ws: &mut tokio_tungstenite::WebSocketStream<
         tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
     >,
 ) -> String {
