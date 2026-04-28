@@ -1,0 +1,11 @@
+# Clippy configuration for beat-stream-rs
+# See: https://doc.rust-lang.org/clippy/configuration.html
+
+# Allow slightly longer functions for WebSocket handlers
+too-many-lines-threshold = 150
+
+# Cognitive complexity threshold
+cognitive-complexity-threshold = 30
+
+# Type complexity threshold (WebSocket types can get nested)
+type-complexity-threshold = 300
