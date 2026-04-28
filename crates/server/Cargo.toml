@@ -7,6 +7,10 @@ edition.workspace = true
 name = "beat-stream-server"
 path = "src/main.rs"
 
+[lib]
+name = "beat_stream_server"
+path = "src/lib.rs"
+
 [dependencies]
 axum = { workspace = true }
 tokio = { workspace = true }

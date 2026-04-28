@@ -4,6 +4,7 @@ pub const NUM_TRACKS: usize = 4;
 pub const NUM_STEPS: usize = 16;
 pub const BPM_MIN: u16 = 60;
 pub const BPM_MAX: u16 = 140;
+pub const DEFAULT_BPM: u16 = 120;
 
 pub type Grid = [[bool; NUM_STEPS]; NUM_TRACKS];
 
@@ -167,7 +168,9 @@ mod tests {
     fn room_state_clamps_bpm() {
         let s = RoomState::new("r1".into(), &PatternName::Chill.grid(), 200);
         assert_eq!(s.bpm, BPM_MAX);
-        let s = RoomState::new("r2".into(), &PatternName::Chill.grid(), 30);
+        let s = RoomState::new("r2".into(), &PatternName::Chill.grid(), DEFAULT_BPM);
+        assert_eq!(s.bpm, DEFAULT_BPM);
+        let s = RoomState::new("r3".into(), &PatternName::Chill.grid(), 30);
         assert_eq!(s.bpm, BPM_MIN);
     }
 

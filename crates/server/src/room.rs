@@ -1,11 +1,11 @@
-use beat_stream_shared::{PatternName, RoomState, ServerMessage, NUM_TRACKS, NUM_STEPS};
+use beat_stream_shared::{PatternName, RoomState, ServerMessage, DEFAULT_BPM, NUM_TRACKS, NUM_STEPS};
 use dashmap::DashMap;
 use rand::Rng;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
-const BROADCAST_CAPACITY: usize = 256;
+const BROADCAST_CAPACITY: usize = 1024;
 
 pub struct Room {
     pub state: parking_lot::RwLock<RoomState>,
@@ -16,7 +16,7 @@ pub struct Room {
 impl Room {
     fn new(id: String, pattern: PatternName) -> Self {
         let grid = pattern.grid();
-        let state = RoomState::new(id, &grid, 120);
+        let state = RoomState::new(id, &grid, DEFAULT_BPM);
         let (tx, _) = broadcast::channel(BROADCAST_CAPACITY);
         Self {
             state: parking_lot::RwLock::new(state),
@@ -28,6 +28,12 @@ impl Room {
 
 pub struct RoomManager {
     pub rooms: Arc<DashMap<String, Arc<Room>>>,
+}
+
+impl Default for RoomManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl RoomManager {
@@ -48,7 +54,8 @@ impl RoomManager {
 
     /// Returns a snapshot of the room state, or None if the room doesn't exist.
     pub fn get_state(&self, id: &str) -> Option<RoomState> {
-        self.rooms.get(id).map(|r| r.state.read().clone())
+        let room = self.rooms.get(id).map(|r| Arc::clone(r.value()));
+        room.map(|r| r.state.read().clone())
     }
 
     /// Returns (or auto-creates) the room for the given id.
@@ -64,19 +71,19 @@ impl RoomManager {
     /// Increments connection count and returns the new count.
     pub fn join(&self, id: &str) -> u32 {
         let room = self.get_or_create(id);
-        let count = room.connections.fetch_add(1, Ordering::SeqCst) + 1;
+        let count = room.connections.fetch_add(1, Ordering::AcqRel) + 1;
         room.state.write().active_users = count;
         count
     }
 
     /// Decrements connection count; removes the room if zero remain. Returns new count.
     pub fn leave(&self, id: &str) -> u32 {
-        if let Some(room) = self.rooms.get(id) {
-            let prev = room.connections.fetch_sub(1, Ordering::SeqCst);
+        let room = self.rooms.get(id).map(|r| Arc::clone(r.value()));
+        if let Some(room) = room {
+            let prev = room.connections.fetch_sub(1, Ordering::AcqRel);
             let count = prev.saturating_sub(1);
             room.state.write().active_users = count;
             if count == 0 {
-                drop(room); // release DashMap ref before removal
                 self.rooms.remove(id);
             }
             count
@@ -86,11 +93,13 @@ impl RoomManager {
     }
 
     /// Toggles a cell and returns the updated value (true = on).
+    /// Clones the Arc<Room> before acquiring RwLock to avoid DashMap+RwLock deadlock.
     pub fn toggle(&self, id: &str, track: u8, step: u8) -> Option<bool> {
         if track as usize >= NUM_TRACKS || step as usize >= NUM_STEPS {
             return None;
         }
-        self.rooms.get(id).map(|r| {
+        let room = self.rooms.get(id).map(|r| Arc::clone(r.value()));
+        room.map(|r| {
             let mut state = r.state.write();
             let cell = &mut state.tracks[track as usize].steps[step as usize];
             *cell = !*cell;
@@ -99,12 +108,14 @@ impl RoomManager {
     }
 
     /// Sets BPM if in valid range and returns Ok(clamped_bpm) or Err message.
+    /// Clones the Arc<Room> before acquiring RwLock to avoid DashMap+RwLock deadlock.
     pub fn set_bpm(&self, id: &str, bpm: u16) -> Result<u16, String> {
         use beat_stream_shared::{BPM_MAX, BPM_MIN};
         if !(BPM_MIN..=BPM_MAX).contains(&bpm) {
             return Err(format!("BPM must be between {BPM_MIN} and {BPM_MAX}"));
         }
-        match self.rooms.get(id) {
+        let room = self.rooms.get(id).map(|r| Arc::clone(r.value()));
+        match room {
             Some(r) => {
                 r.state.write().bpm = bpm;
                 Ok(bpm)

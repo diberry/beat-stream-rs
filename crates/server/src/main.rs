@@ -1,5 +1,8 @@
-mod room;
-mod ws;
+use beat_stream_server::room::RoomManager;
+
+mod ws_bridge {
+    pub use beat_stream_server::ws::handle_socket;
+}
 
 use axum::{
     extract::{Path, State, WebSocketUpgrade},
@@ -7,7 +10,6 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use room::RoomManager;
 use serde_json::json;
 use std::sync::Arc;
 use tower_http::services::ServeDir;
@@ -39,7 +41,7 @@ async fn ws_handler(
     State(mgr): State<AppState>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| ws::handle_socket(socket, mgr, id))
+    ws.on_upgrade(move |socket| ws_bridge::handle_socket(socket, mgr, id))
 }
 
 #[tokio::main]
