@@ -81,6 +81,8 @@
   let reconnectTimer = null;
   let activePreset = null;
   let audioStarted = false;
+  let audioStarting = false;
+  let stepCounter = 0;
 
   // ── Room ID ───────────────────────────────────────────────
   function getRoomId() {
@@ -159,16 +161,17 @@
   }
 
   function startSequencer() {
-    if (sequenceId !== null) return;
+    if (sequenceId !== null) {
+      Tone.getTransport().clear(sequenceId);
+      sequenceId = null;
+    }
 
-    Tone.getTransport().cancel();
+    stepCounter = 0;
 
     sequenceId = Tone.getTransport().scheduleRepeat((time) => {
-      const step = Math.round(Tone.getTransport().position.split(":").reduce(
-        (acc, v, i) => acc + parseFloat(v) * [16, 4, 1][i], 0
-      )) % NUM_STEPS;
+      const step = stepCounter % NUM_STEPS;
+      stepCounter++;
 
-      // Use a simpler approach: track position via 16th notes
       Tone.getDraw().schedule(() => {
         updatePlayhead(step);
       }, time);
@@ -201,7 +204,10 @@
 
   function togglePlayback() {
     if (!audioStarted) {
+      if (audioStarting) return;
+      audioStarting = true;
       Tone.start().then(() => {
+        audioStarting = false;
         initAudio();
         startPlayback();
       });
@@ -289,7 +295,7 @@
 
   // ── Cell click → toggle ───────────────────────────────────
   function onCellClick(track, step) {
-    // Optimistic toggle
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
     const newState = !grid[track][step];
     setCellState(track, step, newState, false);
     sendMessage({ type: "Toggle", track, step });
@@ -316,14 +322,13 @@
   function loadPreset(name) {
     const pattern = PRESETS[name];
     if (!pattern) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
-    // Diff current grid vs preset and send toggles
     for (let t = 0; t < NUM_TRACKS; t++) {
       for (let s = 0; s < NUM_STEPS; s++) {
         const want = !!pattern[t][s];
         if (grid[t][s] !== want) {
           sendMessage({ type: "Toggle", track: t, step: s });
-          // Optimistic update
           setCellState(t, s, want, false);
         }
       }
@@ -369,7 +374,10 @@
 
     ws.onmessage = (evt) => {
       let msg;
-      try { msg = JSON.parse(evt.data); } catch { return; }
+      try { msg = JSON.parse(evt.data); } catch (e) {
+        console.error("[ws] Bad JSON:", evt.data, e);
+        return;
+      }
       handleServerMessage(msg);
     };
 
@@ -444,7 +452,10 @@
 
   // ── Start overlay ─────────────────────────────────────────
   $startBtn.addEventListener("click", () => {
+    if (audioStarting) return;
+    audioStarting = true;
     Tone.start().then(() => {
+      audioStarting = false;
       initAudio();
       $startOverlay.classList.add("hidden");
       startPlayback();
