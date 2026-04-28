@@ -26,8 +26,6 @@ jobs:
       - name: Test
         run: cargo test --workspace
       - name: Install cargo-deny
-        run: |
-          curl -L https://github.com/EmbarkStudios/cargo-deny/releases/latest/download/cargo-deny-x86_64-unknown-linux-gnu.tar.gz | tar xzf -
-          mv cargo-deny-*/cargo-deny /usr/local/bin/
+        run: cargo install --locked cargo-deny
       - name: Deny check
         run: cargo deny check
