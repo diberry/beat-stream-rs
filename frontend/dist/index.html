@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>beat-stream 🎵</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>beat-stream <span class="logo-note">🎵</span></h1>
+    <div class="header-info">
+      <span id="connection-status" class="status disconnected" title="Disconnected">🔴</span>
+      <span id="room-id" class="room-badge" title="Room ID"></span>
+      <span id="user-count" class="user-count" title="Active users">👤 0</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Start overlay (required for audio context) -->
+    <div id="start-overlay" class="start-overlay">
+      <button id="start-btn" class="start-btn">▶ Start</button>
+      <p class="start-hint">tap to begin</p>
+    </div>
+
+    <!-- Beat grid -->
+    <section class="grid-container">
+      <div class="grid-labels" id="grid-labels"></div>
+      <div class="beat-grid" id="beat-grid"></div>
+    </section>
+
+    <!-- Transport controls -->
+    <section class="controls">
+      <button id="play-btn" class="play-btn" title="Play / Pause">▶</button>
+
+      <div class="bpm-control">
+        <label for="bpm-slider">BPM</label>
+        <input type="range" id="bpm-slider" min="60" max="140" value="120">
+        <span id="bpm-value" class="bpm-value">120</span>
+      </div>
+    </section>
+
+    <!-- Pattern presets -->
+    <section class="presets">
+      <span class="presets-label">Patterns</span>
+      <div class="preset-buttons" id="preset-buttons">
+        <button class="preset-btn" data-pattern="Chill">Chill</button>
+        <button class="preset-btn" data-pattern="Bounce">Bounce</button>
+        <button class="preset-btn" data-pattern="Pulse">Pulse</button>
+        <button class="preset-btn" data-pattern="Sparse">Sparse</button>
+        <button class="preset-btn" data-pattern="Chaos">Chaos</button>
+        <button class="preset-btn" data-pattern="Heartbeat">Heartbeat</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.tonejs.org/Tone.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
